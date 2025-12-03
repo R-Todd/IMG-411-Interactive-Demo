@@ -1,5 +1,5 @@
 //
-// main.js – WITH FULL WASD CAMERA CONTROLS, PEDESTAL, AND OPTIMIZED CORE
+// main.js – REFACTORED VERSION
 //
 
 var gl;
@@ -19,10 +19,8 @@ var uNormalMatrixLoc;
 var uLightPosLoc;
 var uCameraPosLoc;
 
-var uAmbientLoc;
-var uDiffuseLoc;
-var uSpecularLoc;
-var uShininessLoc;
+// NEW: Consolidated Material Uniform Locations Object
+var uMaterialLocs = {}; 
 
 var uUseTextureLoc;
 var uTextureLoc;
@@ -37,7 +35,7 @@ var metalTopGeom;
 var metalBottomGeom;
 
 // =======================================================
-// Camera Settings (UPDATED to start at (0, 0, -20) looking at origin)
+// Camera Settings 
 // =======================================================
 var eye = vec3(0.0, 0.0, -20.0); // Camera starts at (0, 0, -20)
 var at  = vec3(0.0, 0.0, 0.0);   // Looking at origin
@@ -78,7 +76,7 @@ var lightOrbitHeight = 3.0;
 var shardRadiusFactor = 1.0; 
 
 // NEW: Core Resolution State
-var coreResolution = 32; // Default resolution for stacks/slices
+var coreResolution = 32; 
 var MIN_RESOLUTION = 4;
 var MAX_RESOLUTION = 64;
 
@@ -110,18 +108,15 @@ function loadTexture(path) {
 }
 
 // =======================================================
-// Core Resolution Functions (NEW)
+// Core Resolution Functions
 // =======================================================
 
 function recreateCoreGeometry() {
-    // Manually dispose of old buffers for cleaner memory management
     if (coreGeom) {
         gl.deleteBuffer(coreGeom.positionBuffer);
         gl.deleteBuffer(coreGeom.normalBuffer);
         gl.deleteBuffer(coreGeom.texCoordBuffer);
     }
-    
-    // Recreate geometry with new resolution
     coreGeom = createCoreGeometry(gl, 1.0, coreResolution, coreResolution);
 }
 
@@ -140,17 +135,15 @@ function decreaseResolution() {
 }
 
 // =======================================================
-// Keyboard Controls 
+// Keyboard/Button Controls 
 // =======================================================
 window.onkeydown = function(event) {
     var key = event.key;
-    var V, R, R_XZ_Norm; // Movement vectors
+    var V, R, R_XZ_Norm; 
 
-    // Calculate dynamic vectors for WASD movement
-    V = normalize( subtract(at, eye) ); // Look vector (L)
-    R = normalize( cross(V, up) );       // Right vector (R)
+    V = normalize( subtract(at, eye) ); 
+    R = normalize( cross(V, up) );       
 
-    // === XZ Plane Strafe Vector (R_XZ_Norm) for A/D ===
     var R_XZ = vec3(R[0], 0.0, R[2]); 
     var R_XZ_len = length(R_XZ);
     if (R_XZ_len < 1e-6) {
@@ -162,24 +155,21 @@ window.onkeydown = function(event) {
     var moveVector; 
     var rotateMatrix;
 
-    // --- WASD Movement ---
-    if (key === "w" || key === "W") { // Forward (along 3D look vector)
+    if (key === "w" || key === "W") { 
         moveVector = scale(moveSpeed, V);
-    } else if (key === "s" || key === "S") { // Backward (along 3D look vector)
+    } else if (key === "s" || key === "S") { 
         moveVector = scale(-moveSpeed, V);
-    } else if (key === "d" || key === "D") { // Strafe Right (along XZ plane right vector)
+    } else if (key === "d" || key === "D") { 
         moveVector = scale(moveSpeed, R_XZ_Norm);
-    } else if (key === "a" || key === "A") { // Strafe Left (along XZ plane left vector)
+    } else if (key === "a" || key === "A") { 
         moveVector = scale(-moveSpeed, R_XZ_Norm);
     }
     
-    // Apply translational movement
     if (moveVector) {
         eye = add(eye, moveVector);
         at = add(at, moveVector);
     }
 
-    // --- Left/Right Arrow Rotation (Y-axis) ---
     if (key === "ArrowLeft") { 
         rotateMatrix = rotate(turnSpeed, up); 
     } else if (key === "ArrowRight") { 
@@ -190,7 +180,6 @@ window.onkeydown = function(event) {
         var V_vec4 = vec4(V[0], V[1], V[2], 0.0);
         var V_rotated_array = [];
         
-        // Manual Matrix * Vector Multiplication
         for (var i = 0; i < 4; i++) {
             var row = rotateMatrix[i];
             var V_in = V_vec4;
@@ -208,7 +197,6 @@ window.onkeydown = function(event) {
         at = add(eye, scale(distance, new_V));
     }
     
-    // --- Other Controls (Unchanged) ---
     if (key === "1") corePulseSpeed = (corePulseSpeed > 0.05) ? 0.02 : 0.08;
     if (key === "2") {
         shardOrbitSpeeds = (shardOrbitSpeeds[0] < 1.5)
@@ -217,11 +205,7 @@ window.onkeydown = function(event) {
     }
 };
 
-// =======================================================
-// Buttons 
-// =======================================================
 function orbitLeft()  { 
-    // Rotate V CCW around Y-axis, faster than keyboard arrows
     var V = normalize( subtract(at, eye) ); 
     var rotateMatrix = rotate(turnSpeed * 3.0, up); 
     
@@ -243,7 +227,6 @@ function orbitLeft()  {
     at = add(eye, scale(distance, new_V));
 }
 function orbitRight() { 
-    // Rotate V CW around Y-axis, faster than keyboard arrows
     var V = normalize( subtract(at, eye) ); 
     var rotateMatrix = rotate(-turnSpeed * 3.0, up);
     
@@ -265,7 +248,6 @@ function orbitRight() {
     at = add(eye, scale(distance, new_V));
 }
 function resetCamera(){
-    // Reset to starting position and look-at point
     eye = vec3(0.0, 0.0, -20.0);
     at  = vec3(0.0, 0.0, 0.0);
 }
@@ -292,6 +274,7 @@ window.onload = function init() {
     program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram(program);
 
+    // --- Retrieve and Store ALL Uniform Locations for Helpers ---
     vPositionLoc = gl.getAttribLocation(program, "vPosition");
     aNormalLoc   = gl.getAttribLocation(program, "aNormal");
     vTexCoordLoc = gl.getAttribLocation(program, "vTexCoord");
@@ -301,31 +284,29 @@ window.onload = function init() {
     uProjectionLoc   = gl.getUniformLocation(program, "uProjection");
     uNormalMatrixLoc = gl.getUniformLocation(program, "uNormalMatrix");
 
+    uMaterialLocs.uAmbientLoc    = gl.getUniformLocation(program, "uAmbient");
+    uMaterialLocs.uDiffuseLoc    = gl.getUniformLocation(program, "uDiffuse");
+    uMaterialLocs.uSpecularLoc   = gl.getUniformLocation(program, "uSpecular");
+    uMaterialLocs.uShininessLoc  = gl.getUniformLocation(program, "uShininess");
+
     uLightPosLoc   = gl.getUniformLocation(program, "uLightPos");
     uCameraPosLoc  = gl.getUniformLocation(program, "uCameraPos");
 
-    uAmbientLoc    = gl.getUniformLocation(program, "uAmbient");
-    uDiffuseLoc    = gl.getUniformLocation(program, "uDiffuse");
-    uSpecularLoc   = gl.getUniformLocation(program, "uSpecular");
-    uShininessLoc  = gl.getUniformLocation(program, "uShininess");
-
-    uUseTextureLoc = gl.getUniformLocation(program, "uUseTexture");
-    uTextureLoc    = gl.getUniformLocation(program, "uTexture");
-
-    uAlphaLoc      = gl.getUniformLocation(program, "uAlpha");
+    uMaterialLocs.uUseTextureLoc = gl.getUniformLocation(program, "uUseTexture");
+    uTextureLoc                  = gl.getUniformLocation(program, "uTexture");
+    uMaterialLocs.uAlphaLoc      = gl.getUniformLocation(program, "uAlpha");
+    // -------------------------------------------------------------
 
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(uTextureLoc, 0);
 
     var aspect = canvas.width / canvas.height;
-    // Perspective projection setup
     var projMat = perspective(45.0, aspect, 0.1, 100.0);
     gl.uniformMatrix4fv(uProjectionLoc, false, flatten(projMat));
     
     textures.glass = loadTexture("textures/glass.jpg");
     textures.metal = loadTexture("textures/metal.jpg");
 
-    // Initialize core geometry with the new dynamic resolution state
     coreGeom     = createCoreGeometry(gl, 1.0, coreResolution, coreResolution); 
     shardGeom    = createShardGeometry(gl, 1.2, 0.35);
 
@@ -334,7 +315,6 @@ window.onload = function init() {
     metalBottomGeom = cyl.bottom;
     metalTopGeom    = cyl.top;
 
-    // Set initial slider value in JS to sync with HTML default
     var slider = document.getElementById("shardRadiusSlider");
     if (slider) {
         shardRadiusFactor = slider.valueAsNumber;
@@ -350,7 +330,6 @@ function sendMatrices(model) {
 
     gl.uniformMatrix4fv(uModelLoc, false, flatten(model));
 
-    // Calculates the inverse transpose for proper normal transformation
     var mv = mult(lookAt(eye, at, up), model);
     var normalM = normalMatrix(mv, true); 
 
@@ -370,7 +349,6 @@ function drawGeometry(geom) {
     gl.vertexAttribPointer(vTexCoordLoc, 2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(vTexCoordLoc);
 
-    // Differentiated drawing logic: Core uses non-indexed TRIANGLE_STRIP; others use indexed TRIANGLES.
     if (geom === coreGeom) {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, geom.numVertices);
     } else {
@@ -381,7 +359,7 @@ function drawGeometry(geom) {
 
 
 // =======================================================
-// Render Loop (Opaque → Transparent)
+// Render Loop (Refactored)
 // =======================================================
 function render() {
     requestAnimFrame(render);
@@ -396,75 +374,51 @@ function render() {
     }
 
     gl.clearColor(0.05, 0.05, 0.08, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // Enables Z-buffer
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
 
-    // --- Dynamic Light Source Logic ---
     var currentLightPos;
     if (lightOrbitOn) {
-        lightOrbitAngle += lightOrbitSpeed * 0.01;
         var radLight = radians(lightOrbitAngle);
         var lx = lightDistance * Math.sin(radLight);
         var lz = lightDistance * Math.cos(radLight);
         currentLightPos = vec3(lx, lightOrbitHeight, lz);
+        lightOrbitAngle += lightOrbitSpeed * 0.01;
     } else {
         currentLightPos = vec3(0.0, lightOrbitHeight, 0.0);
     }
     gl.uniform3fv(uLightPosLoc, flatten(currentLightPos));
-    // ------------------------------------------
 
-    // --- Camera Transformation ---
     var view = lookAt(eye, at, up);
     gl.uniformMatrix4fv(uViewLoc, false, flatten(view));
     gl.uniform3fv(uCameraPosLoc, flatten(eye));
-    // ------------------------------------------
 
-
-    // Update shard orbit radius dynamically from slider input
     shardOrbitRadius = 2.3 * shardRadiusFactor; 
 
     // =======================================================
     // 1. CORE (opaque)
     // =======================================================
-    gl.uniform1f(uAlphaLoc, 1.0);
-    gl.uniform1i(uUseTextureLoc, false);
+    setMaterial(gl, uMaterialLocs, Materials.CORE);
     
-    // Core Material Properties
-    gl.uniform4fv(uAmbientLoc,  flatten(vec4(0.2, 0.0, 0.0, 1.0)));
-    gl.uniform4fv(uDiffuseLoc,  flatten(vec4(1.0, 0.4, 0.0, 1.0)));
-    gl.uniform4fv(uSpecularLoc, flatten(vec4(1.0, 1.0, 1.0, 1.0))); 
-    gl.uniform1f(uShininessLoc, 20.0); 
-    
-
     var coreModel = mat4();
     coreModel = mult(coreModel, translate(0.0, 0.6, 0.0));
-
     var pulse = 1.0 + 0.05 * Math.sin(corePulsePhase * 3.0);
     coreModel = mult(coreModel, scalem(pulse, pulse, pulse));
-
     coreModel = mult(coreModel, rotate(coreAngle, [0, 1, 0]));
-
     var bob = Math.sin(coreBobPhase * 4.0) * 0.1;
     coreModel = mult(coreModel, translate(0.0, bob, 0.0));
 
     sendMatrices(coreModel);
-    drawGeometry(coreGeom); // Uses gl.TRIANGLE_STRIP inside drawGeometry now
+    drawGeometry(coreGeom); 
 
     // =======================================================
-    // 2. SHARDS (opaque) - PURPLE COLOR APPLIED
+    // 2. SHARDS (opaque)
     // =======================================================
-    
-    // Shard Material Properties: PURPLE
-    gl.uniform4fv(uAmbientLoc,  flatten(vec4(0.15, 0.05, 0.20, 1.0)));
-    gl.uniform4fv(uDiffuseLoc,  flatten(vec4(0.6, 0.2, 0.8, 1.0))); 
-    gl.uniform4fv(uSpecularLoc, flatten(vec4(1.0, 1.0, 1.0, 1.0)));
-    gl.uniform1f(uShininessLoc, 40.0); 
+    setMaterial(gl, uMaterialLocs, Materials.SHARDS_PURPLE);
 
     for (var i = 0; i < 4; i++) {
-
         var ang = radians(shardAngles[i]);
         var shardModel = mat4();
 
-        // Use the dynamically updated shardOrbitRadius (from slider)
         var x = shardOrbitRadius * Math.sin(ang); 
         var z = shardOrbitRadius * Math.cos(ang);
         var y = shardYOffset[i];
@@ -479,14 +433,7 @@ function render() {
     // =======================================================
     // 3. METAL COLLARS (textured)
     // =======================================================
-    gl.uniform1i(uUseTextureLoc, true);
-    gl.uniform1f(uAlphaLoc, 1.0);
-    gl.bindTexture(gl.TEXTURE_2D, textures.metal);
-
-    gl.uniform4fv(uAmbientLoc,  flatten(vec4(0.3, 0.3, 0.3, 1.0)));
-    gl.uniform4fv(uDiffuseLoc,  flatten(vec4(0.8, 0.8, 0.8, 1.0)));
-    gl.uniform4fv(uSpecularLoc, flatten(vec4(0.6, 0.6, 0.6, 1.0)));
-    gl.uniform1f(uShininessLoc, 16.0);
+    setMaterial(gl, uMaterialLocs, Materials.METAL_COLLAR(textures.metal));
 
     // Top Collar
     var ring1 = mat4();
@@ -503,16 +450,9 @@ function render() {
     drawGeometry(cylinderGeom);
 
     // =======================================================
-    // 4. METAL CAPS (solid color – OPTION E)
+    // 4. METAL CAPS (solid color)
     // =======================================================
-    gl.uniform1i(uUseTextureLoc, false);
-    gl.uniform1f(uAlphaLoc, 1.0);
-
-    // Dark metallic color for caps and pedestal
-    gl.uniform4fv(uAmbientLoc,  flatten(vec4(0.18, 0.22, 0.28, 1.0)));
-    gl.uniform4fv(uDiffuseLoc,  flatten(vec4(0.30, 0.36, 0.42, 1.0)));
-    gl.uniform4fv(uSpecularLoc, flatten(vec4(0.60, 0.68, 0.75, 1.0)));
-    gl.uniform1f(uShininessLoc, 32.0);
+    setMaterial(gl, uMaterialLocs, Materials.METAL_CAP);
 
     // Bottom Cap
     var bottomModel = mat4();
@@ -530,45 +470,27 @@ function render() {
 
 
     // =======================================================
-    // 6. PEDESTAL (NEW MODELING GEOMETRY)
+    // 6. PEDESTAL (CALLS drawPedestal)
     // =======================================================
+    // Setup helper object containing functions and geometry needed by pedestal-model.js
+    const pedestalHelpers = { 
+        cylinderGeom: cylinderGeom, 
+        metalBottomGeom: metalBottomGeom, 
+        metalTopGeom: metalTopGeom, 
+        sendMatrices: sendMatrices, 
+        drawGeometry: drawGeometry 
+    };
     
-    // Tier 1: Wide, thick base (Uses metal disk for a flat top)
-    var pedestalTier1Model = mat4();
-    // Centered at Y = -3.5 (Base of the whole structure)
-    pedestalTier1Model = mult(pedestalTier1Model, translate(0.0, -3.5, 0.0)); 
-    pedestalTier1Model = mult(pedestalTier1Model, scalem(6.0, 1.0, 6.0));
-    sendMatrices(pedestalTier1Model);
-    drawGeometry(metalBottomGeom); 
-
-    // Tier 2: Riser (Uses cylinder side for vertical look)
-    var pedestalTier2Model = mat4();
-    // Centered at Y = -2.75 
-    pedestalTier2Model = mult(pedestalTier2Model, translate(0.0, -2.75, 0.0));
-    pedestalTier2Model = mult(pedestalTier2Model, scalem(5.0, 0.5, 5.0));
-    sendMatrices(pedestalTier2Model);
-    drawGeometry(cylinderGeom); 
-    
-    // Tier 3: Cap/Lip (Use metal disk as a cap for the riser)
-    var pedestalTier3Model = mat4();
-    // Translate up to meet riser top edge
-    pedestalTier3Model = mult(pedestalTier3Model, translate(0.0, -2.5, 0.0)); 
-    pedestalTier3Model = mult(pedestalTier3Model, scalem(5.5, 0.1, 5.5));
-    sendMatrices(pedestalTier3Model);
-    drawGeometry(metalTopGeom); 
+    // The core logic is now encapsulated here:
+    drawPedestal(gl, 
+        (gl, material) => setMaterial(gl, uMaterialLocs, material), 
+        pedestalHelpers
+    );
     
     // =======================================================
     // 5. GLASS CYLINDER (transparent, last)
     // =======================================================
-    gl.uniform1i(uUseTextureLoc, true);
-    gl.bindTexture(gl.TEXTURE_2D, textures.glass);
-
-    gl.uniform1f(uAlphaLoc, 0.35);
-
-    gl.uniform4fv(uAmbientLoc,  flatten(vec4(0.1, 0.1, 0.15, 1.0)));
-    gl.uniform4fv(uDiffuseLoc,  flatten(vec4(0.3, 0.3, 0.4, 1.0)));
-    gl.uniform4fv(uSpecularLoc, flatten(vec4(1.0, 1.0, 1.0, 1.0))); 
-    gl.uniform1f(uShininessLoc, 32.0); 
+    setMaterial(gl, uMaterialLocs, Materials.GLASS_CYLINDER(textures.glass));
     
     var cylModel = mat4();
     cylModel = mult(cylModel, scalem(4.0, 3.0, 4.0));
