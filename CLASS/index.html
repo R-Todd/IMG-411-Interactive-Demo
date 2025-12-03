@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Floating Energy Core With Spinning Shards</title>
+    
+    <script type="text/javascript" src="../COMMON/webgl-utils.js"></script> 
+    
+    <script type="text/javascript" src="../COMMON/MV.js"></script> 
+    
+    <script type="text/javascript" src="../COMMON/initShaders.js"></script> 
+    
+    
+    <script type="text/javascript" src="core-geometry.js"></script>
+    
+    <script type="text/javascript" src="shard-geometry.js"></script>
+    
+    <script type="text/javascript" src="shaders.js"></script> 
+    
+    <script type="text/javascript" src="main.js"></script>
+    
+    
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        // VERTEX SHADER PLACEHOLDER (Replaced in Phase 1)
+        void main() { 
+            // Minimal requirement for gl_Position output
+            gl_Position = vec4(0.0, 0.0, 0.0, 1.0); 
+        }
+    </script>
+    
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        // FRAGMENT SHADER PLACEHOLDER (Replaced in Phase 1)
+        precision mediump float; // Required precision specifier
+        void main() { 
+            // Output a basic solid color
+            gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0); 
+        }
+    </script>
+
+    <style>
+        body { margin: 0; background-color: #111; color: #eee; font-family: monospace; text-align: center; }
+        canvas { border: 1px solid #333; margin: 20px auto; display: block; }
+        #ui-controls { 
+            padding: 15px; 
+            background-color: #222; 
+            width: 800px; 
+            margin: 0 auto;
+            border-radius: 5px;
+        }
+    </style>
+
+</head>
+<body>
+    
+    <canvas id="gl-canvas" width="800" height="800">
+        Oops... your browser doesn't support the HTML5 canvas element
+    </canvas>
+    
+    <div id="ui-controls">
+        <h3>Floating Energy Core Interactivity</h3>
+        <p><strong>Camera Controls:</strong></p>
+        <p>Rotate: <kbd>←</kbd> / <kbd>→</kbd> / <kbd>↑</kbd> / <kbd>↓</kbd> | Zoom: <kbd>W</kbd> (In) / <kbd>S</kbd> (Out)</p>
+        <p><strong>Effects Toggles:</strong></p>
+        <p>Toggle Shard Speed: <kbd>1</kbd> | Toggle Core Pulse Intensity: <kbd>2</kbd> | Toggle Color Mode: <kbd>3</kbd></p>
+    </div>
+</body>
+</html>
