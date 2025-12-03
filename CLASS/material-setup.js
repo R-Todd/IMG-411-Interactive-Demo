@@ -1,6 +1,5 @@
 //
 // material-setup.js
-// Contains functions and data structures for setting WebGL material uniforms.
 //
 
 function setMaterial(gl, materialLocs, material) {
@@ -57,8 +56,10 @@ const Materials = {
         alpha: 1.0
     },
     GLASS_CYLINDER: (texture) => ({
-        ambient: [0.1, 0.1, 0.15, 1.0],
-        diffuser: [0.3, 0.3, 0.4, 1.0],
+        // CORRECTED: Changed blue component (0.15) to neutral gray (0.1)
+        ambient: [0.1, 0.1, 0.1, 1.0], 
+        // CORRECTED: Changed blue component (0.4) to neutral gray (0.3)
+        diffuse: [0.3, 0.3, 0.3, 1.0], 
         specular: [1.0, 1.0, 1.0, 1.0],
         shininess: 32.0,
         useTexture: true,

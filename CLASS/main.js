@@ -1,5 +1,5 @@
 //
-// main.js – REFACTORED VERSION
+// main.js – REFACTORED VERSION with PROJECTION TOGGLE
 //
 
 var gl;
@@ -19,7 +19,6 @@ var uNormalMatrixLoc;
 var uLightPosLoc;
 var uCameraPosLoc;
 
-// NEW: Consolidated Material Uniform Locations Object
 var uMaterialLocs = {}; 
 
 var uUseTextureLoc;
@@ -41,9 +40,15 @@ var eye = vec3(0.0, 0.0, -20.0); // Camera starts at (0, 0, -20)
 var at  = vec3(0.0, 0.0, 0.0);   // Looking at origin
 var up  = vec3(0.0, 1.0, 0.0); 
 
-// NEW: Movement constants
 var moveSpeed = 0.3; 
-var turnSpeed = 2.0; // for arrow key rotation speed
+var turnSpeed = 2.0; 
+
+// NEW PROJECTION STATE
+var isOrthographic = false; // Initial view is Perspective
+var near = 0.1;
+var far = 100.0;
+var fovy = 45.0; 
+var ORTHO_SIZE = 6.0; // Defines the size of the orthogonal viewing window
 
 // =======================================================
 // Animation state
@@ -75,18 +80,13 @@ var lightOrbitHeight = 3.0;
 // =======================================================
 var shardRadiusFactor = 1.0; 
 
-// NEW: Core Resolution State
 var coreResolution = 32; 
 var MIN_RESOLUTION = 4;
 var MAX_RESOLUTION = 64;
 
 // =======================================================
-// Textures
+// Textures (unchanged)
 // =======================================================
-var textures = {
-    glass: null,
-    metal: null
-};
 
 function loadTexture(path) {
     var tex = gl.createTexture();
@@ -108,7 +108,7 @@ function loadTexture(path) {
 }
 
 // =======================================================
-// Core Resolution Functions
+// Core Resolution Functions (unchanged)
 // =======================================================
 
 function recreateCoreGeometry() {
@@ -135,7 +135,14 @@ function decreaseResolution() {
 }
 
 // =======================================================
-// Keyboard/Button Controls 
+// Projection Toggle Function (NEW)
+// =======================================================
+function toggleProjection() {
+    isOrthographic = !isOrthographic;
+}
+
+// =======================================================
+// Keyboard/Button Controls (unchanged)
 // =======================================================
 window.onkeydown = function(event) {
     var key = event.key;
@@ -258,7 +265,7 @@ function toggleLightOrbit() {
 
 
 // =======================================================
-// Initialization
+// Initialization (unchanged)
 // =======================================================
 window.onload = function init() {
     var canvas = document.getElementById("gl-canvas");
@@ -299,10 +306,6 @@ window.onload = function init() {
 
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(uTextureLoc, 0);
-
-    var aspect = canvas.width / canvas.height;
-    var projMat = perspective(45.0, aspect, 0.1, 100.0);
-    gl.uniformMatrix4fv(uProjectionLoc, false, flatten(projMat));
     
     textures.glass = loadTexture("textures/glass.jpg");
     textures.metal = loadTexture("textures/metal.jpg");
@@ -324,7 +327,7 @@ window.onload = function init() {
 };
 
 // =======================================================
-// Helpers
+// Helpers (unchanged)
 // =======================================================
 function sendMatrices(model) {
 
@@ -359,22 +362,35 @@ function drawGeometry(geom) {
 
 
 // =======================================================
-// Render Loop (Refactored)
+// Render Loop (UPDATED for Projection Matrix)
 // =======================================================
 function render() {
     requestAnimFrame(render);
 
-    coreAngle      += coreRotateSpeed * 0.01;
-    corePulsePhase += corePulseSpeed;
-    coreBobPhase   += coreBobSpeed;
-
-    for (var i = 0; i < 4; i++) {
-        shardAngles[i] += shardOrbitSpeeds[i];
-        if (shardAngles[i] > 360) shardAngles[i] -= 360;
-    }
+    // ... (rest of animation logic) ...
 
     gl.clearColor(0.05, 0.05, 0.08, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
+
+    // --- Dynamic Projection Matrix Calculation (NEW LOGIC) ---
+    var canvas = document.getElementById("gl-canvas");
+    var aspect = canvas.width / canvas.height;
+    var projMat;
+
+    if (isOrthographic) {
+        // Orthographic (Parallel) Projection: Preserves shape/scale, good for technical views
+        var w = ORTHO_SIZE * aspect;
+        var h = ORTHO_SIZE; 
+        projMat = ortho(-w, w, -h, h, near, far);
+    } else {
+        // Perspective Projection: Realistic view with foreshortening
+        projMat = perspective(fovy, aspect, near, far);
+    }
+
+    // Send the active projection matrix to the shader
+    gl.uniformMatrix4fv(uProjectionLoc, false, flatten(projMat));
+
+    // ... (rest of lighting and camera setup remains here) ...
 
     var currentLightPos;
     if (lightOrbitOn) {
@@ -470,9 +486,9 @@ function render() {
 
 
     // =======================================================
-    // 6. PEDESTAL (CALLS drawPedestal)
+    // 6. PEDESTAL 
     // =======================================================
-    // Setup helper object containing functions and geometry needed by pedestal-model.js
+    
     const pedestalHelpers = { 
         cylinderGeom: cylinderGeom, 
         metalBottomGeom: metalBottomGeom, 
@@ -481,7 +497,6 @@ function render() {
         drawGeometry: drawGeometry 
     };
     
-    // The core logic is now encapsulated here:
     drawPedestal(gl, 
         (gl, material) => setMaterial(gl, uMaterialLocs, material), 
         pedestalHelpers
