@@ -1,38 +1,57 @@
-//
 // pedestal-model.js
-// Contains functions to draw the pedestal geometry using transformations.
-//
-// Assumes global helper functions (mult, translate, scalem) are available.
-//
+
+
 function drawPedestal(gl, materialSetter, helpers) {
+    // funtion imports 
     const { cylinderGeom, metalBottomGeom, metalTopGeom, sendMatrices, drawGeometry } = helpers;
     
-    // Set Pedestal Material (Reusing Dark Metal from Cap/Tier)
+    // sets dark metallic material (same as cap)
     materialSetter(gl, Materials.METAL_CAP);
 
-    // --- Pedestal Modeling using layered transformations ---
     
-    // Tier 3 (Lip): Sits just below the containment vessel at Y = -3.0
+    
+    // pedestal is made of 3 tiers:
+    // tier 1: Bottom wide layer
+    // tier 2: Middle riser
+    // tier 3: Top thin layer
+
+
     var pedestalTier3Model = mat4();
-    // Center Y = -3.1. Height 0.2 (scale 0.1). Top edge is at -3.0.
+    // position: 
+    //      Y = -3.1 
+    //      Center of 0.2 
+    //      height scaled by 0.1)
     pedestalTier3Model = mult(pedestalTier3Model, translate(0.0, -3.1, 0.0)); 
+
+
+    // Scale: Wide (5.5) and very short (0.1)
     pedestalTier3Model = mult(pedestalTier3Model, scalem(5.5, 0.1, 5.5));
     sendMatrices(pedestalTier3Model);
-    drawGeometry(metalTopGeom); 
+    drawGeometry(metalTopGeom); // Use the disk geometry for the top surface
 
-    // Tier 2 (Riser): Vertical part. Top edge must meet Tier 3 bottom (-3.2).
+    // Tier 2 (middle riser) - Vertical cylindrical part
     var pedestalTier2Model = mat4();
-    // Center Y = -3.7. Height 1.0 (scale 0.5). Top edge is at -3.2.
+    // Calculate position: 
+    // - Y = -3.7
+    // - Center of 1.0 
+    // - height scaled by 0.5)
     pedestalTier2Model = mult(pedestalTier2Model, translate(0.0, -3.7, 0.0));
+
+    // Scale: Medium width (5.0) and medium height (0.5)
     pedestalTier2Model = mult(pedestalTier2Model, scalem(5.0, 0.5, 5.0));
     sendMatrices(pedestalTier2Model);
-    drawGeometry(cylinderGeom); 
+    drawGeometry(cylinderGeom); // Use the cylinder geometry
     
-    // Tier 1 (Base): Bottom flat part. Top edge must meet Tier 2 bottom (-4.2).
+    // Tier 1 (Base)
     var pedestalTier1Model = mat4();
-    // Center Y = -5.2. Height 2.0 (scale 1.0). Top edge is at -4.2.
+    // Calculate position: 
+    // - Y = -5.2 
+    // - Center of 2.0 
+    // - height scaled by 1.0)
     pedestalTier1Model = mult(pedestalTier1Model, translate(0.0, -5.2, 0.0)); 
+    // Widest (6.0) and tall (1.0)
     pedestalTier1Model = mult(pedestalTier1Model, scalem(6.0, 1.0, 6.0));
     sendMatrices(pedestalTier1Model);
-    drawGeometry(metalBottomGeom); 
+    drawGeometry(metalBottomGeom); // Use the disk geometry for the bottom surface
 }
+// _____________________________________________________________
