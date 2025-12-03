@@ -1,5 +1,5 @@
 //
-// main.js – WITH FULL WASD CAMERA CONTROLS
+// main.js – WITH FULL WASD CAMERA CONTROLS, PEDESTAL, AND OPTIMIZED CORE
 //
 
 var gl;
@@ -77,6 +77,11 @@ var lightOrbitHeight = 3.0;
 // =======================================================
 var shardRadiusFactor = 1.0; 
 
+// NEW: Core Resolution State
+var coreResolution = 32; // Default resolution for stacks/slices
+var MIN_RESOLUTION = 4;
+var MAX_RESOLUTION = 64;
+
 // =======================================================
 // Textures
 // =======================================================
@@ -105,7 +110,37 @@ function loadTexture(path) {
 }
 
 // =======================================================
-// Keyboard Controls (IMPLEMENTATION of WASD/Arrows)
+// Core Resolution Functions (NEW)
+// =======================================================
+
+function recreateCoreGeometry() {
+    // Manually dispose of old buffers for cleaner memory management
+    if (coreGeom) {
+        gl.deleteBuffer(coreGeom.positionBuffer);
+        gl.deleteBuffer(coreGeom.normalBuffer);
+        gl.deleteBuffer(coreGeom.texCoordBuffer);
+    }
+    
+    // Recreate geometry with new resolution
+    coreGeom = createCoreGeometry(gl, 1.0, coreResolution, coreResolution);
+}
+
+function increaseResolution() {
+    if (coreResolution < MAX_RESOLUTION) {
+        coreResolution = Math.min(MAX_RESOLUTION, coreResolution * 2);
+        recreateCoreGeometry();
+    }
+}
+
+function decreaseResolution() {
+    if (coreResolution > MIN_RESOLUTION) {
+        coreResolution = Math.max(MIN_RESOLUTION, coreResolution / 2);
+        recreateCoreGeometry();
+    }
+}
+
+// =======================================================
+// Keyboard Controls 
 // =======================================================
 window.onkeydown = function(event) {
     var key = event.key;
@@ -116,12 +151,10 @@ window.onkeydown = function(event) {
     R = normalize( cross(V, up) );       // Right vector (R)
 
     // === XZ Plane Strafe Vector (R_XZ_Norm) for A/D ===
-    // Project R onto the XZ plane: (R.x, 0, R.z)
     var R_XZ = vec3(R[0], 0.0, R[2]); 
-    // Normalize the projected vector
     var R_XZ_len = length(R_XZ);
     if (R_XZ_len < 1e-6) {
-        R_XZ_Norm = vec3(1.0, 0.0, 0.0); // Fallback to world X
+        R_XZ_Norm = vec3(1.0, 0.0, 0.0); 
     } else {
         R_XZ_Norm = scale(1.0 / R_XZ_len, R_XZ);
     }
@@ -148,10 +181,8 @@ window.onkeydown = function(event) {
 
     // --- Left/Right Arrow Rotation (Y-axis) ---
     if (key === "ArrowLeft") { 
-        // Rotate look vector (V) CCW around Y-axis, then update AT
         rotateMatrix = rotate(turnSpeed, up); 
     } else if (key === "ArrowRight") { 
-        // Rotate V (look vector) CW around Y-axis, then update AT
         rotateMatrix = rotate(-turnSpeed, up); 
     }
 
@@ -159,7 +190,7 @@ window.onkeydown = function(event) {
         var V_vec4 = vec4(V[0], V[1], V[2], 0.0);
         var V_rotated_array = [];
         
-        // FIXED: Manual Matrix * Vector Multiplication to avoid the mult bug
+        // Manual Matrix * Vector Multiplication
         for (var i = 0; i < 4; i++) {
             var row = rotateMatrix[i];
             var V_in = V_vec4;
@@ -169,10 +200,9 @@ window.onkeydown = function(event) {
                       row[3] * V_in[3];
             V_rotated_array.push(sum);
         }
-        var V_rotated = V_rotated_array; // Result is a correct rotated vector
+        var V_rotated = V_rotated_array; 
 
         var new_V = normalize(V_rotated.slice(0, 3)); 
-        // Re-establish AT point at the original distance from eye
         var distance = length(subtract(at, eye)); 
         
         at = add(eye, scale(distance, new_V));
@@ -295,7 +325,8 @@ window.onload = function init() {
     textures.glass = loadTexture("textures/glass.jpg");
     textures.metal = loadTexture("textures/metal.jpg");
 
-    coreGeom     = createCoreGeometry(gl, 1.0, 32, 32);
+    // Initialize core geometry with the new dynamic resolution state
+    coreGeom     = createCoreGeometry(gl, 1.0, coreResolution, coreResolution); 
     shardGeom    = createShardGeometry(gl, 1.2, 0.35);
 
     var cyl = createCylinderGeometry(gl, 64);
@@ -311,6 +342,43 @@ window.onload = function init() {
 
     render();
 };
+
+// =======================================================
+// Helpers
+// =======================================================
+function sendMatrices(model) {
+
+    gl.uniformMatrix4fv(uModelLoc, false, flatten(model));
+
+    // Calculates the inverse transpose for proper normal transformation
+    var mv = mult(lookAt(eye, at, up), model);
+    var normalM = normalMatrix(mv, true); 
+
+    gl.uniformMatrix3fv(uNormalMatrixLoc, false, flatten(normalM));
+}
+
+function drawGeometry(geom) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, geom.positionBuffer);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vPositionLoc);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, geom.normalBuffer);
+    gl.vertexAttribPointer(aNormalLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aNormalLoc);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, geom.texCoordBuffer);
+    gl.vertexAttribPointer(vTexCoordLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vTexCoordLoc);
+
+    // Differentiated drawing logic: Core uses non-indexed TRIANGLE_STRIP; others use indexed TRIANGLES.
+    if (geom === coreGeom) {
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, geom.numVertices);
+    } else {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, geom.indexBuffer);
+        gl.drawElements(gl.TRIANGLES, geom.numIndices, gl.UNSIGNED_SHORT, 0);
+    }
+}
+
 
 // =======================================================
 // Render Loop (Opaque → Transparent)
@@ -345,7 +413,6 @@ function render() {
     // ------------------------------------------
 
     // --- Camera Transformation ---
-    // The 'eye' and 'at' vectors are updated directly by the keyboard handler
     var view = lookAt(eye, at, up);
     gl.uniformMatrix4fv(uViewLoc, false, flatten(view));
     gl.uniform3fv(uCameraPosLoc, flatten(eye));
@@ -380,7 +447,7 @@ function render() {
     coreModel = mult(coreModel, translate(0.0, bob, 0.0));
 
     sendMatrices(coreModel);
-    drawGeometry(coreGeom);
+    drawGeometry(coreGeom); // Uses gl.TRIANGLE_STRIP inside drawGeometry now
 
     // =======================================================
     // 2. SHARDS (opaque) - PURPLE COLOR APPLIED
@@ -441,6 +508,7 @@ function render() {
     gl.uniform1i(uUseTextureLoc, false);
     gl.uniform1f(uAlphaLoc, 1.0);
 
+    // Dark metallic color for caps and pedestal
     gl.uniform4fv(uAmbientLoc,  flatten(vec4(0.18, 0.22, 0.28, 1.0)));
     gl.uniform4fv(uDiffuseLoc,  flatten(vec4(0.30, 0.36, 0.42, 1.0)));
     gl.uniform4fv(uSpecularLoc, flatten(vec4(0.60, 0.68, 0.75, 1.0)));
@@ -460,6 +528,35 @@ function render() {
     sendMatrices(topModel);
     drawGeometry(metalTopGeom);
 
+
+    // =======================================================
+    // 6. PEDESTAL (NEW MODELING GEOMETRY)
+    // =======================================================
+    
+    // Tier 1: Wide, thick base (Uses metal disk for a flat top)
+    var pedestalTier1Model = mat4();
+    // Centered at Y = -3.5 (Base of the whole structure)
+    pedestalTier1Model = mult(pedestalTier1Model, translate(0.0, -3.5, 0.0)); 
+    pedestalTier1Model = mult(pedestalTier1Model, scalem(6.0, 1.0, 6.0));
+    sendMatrices(pedestalTier1Model);
+    drawGeometry(metalBottomGeom); 
+
+    // Tier 2: Riser (Uses cylinder side for vertical look)
+    var pedestalTier2Model = mat4();
+    // Centered at Y = -2.75 
+    pedestalTier2Model = mult(pedestalTier2Model, translate(0.0, -2.75, 0.0));
+    pedestalTier2Model = mult(pedestalTier2Model, scalem(5.0, 0.5, 5.0));
+    sendMatrices(pedestalTier2Model);
+    drawGeometry(cylinderGeom); 
+    
+    // Tier 3: Cap/Lip (Use metal disk as a cap for the riser)
+    var pedestalTier3Model = mat4();
+    // Translate up to meet riser top edge
+    pedestalTier3Model = mult(pedestalTier3Model, translate(0.0, -2.5, 0.0)); 
+    pedestalTier3Model = mult(pedestalTier3Model, scalem(5.5, 0.1, 5.5));
+    sendMatrices(pedestalTier3Model);
+    drawGeometry(metalTopGeom); 
+    
     // =======================================================
     // 5. GLASS CYLINDER (transparent, last)
     // =======================================================
@@ -477,35 +574,4 @@ function render() {
     cylModel = mult(cylModel, scalem(4.0, 3.0, 4.0));
     sendMatrices(cylModel);
     drawGeometry(cylinderGeom);
-}
-
-// =======================================================
-// Helpers
-// =======================================================
-function sendMatrices(model) {
-
-    gl.uniformMatrix4fv(uModelLoc, false, flatten(model));
-
-    // Calculates the inverse transpose for proper normal transformation
-    var mv = mult(lookAt(eye, at, up), model);
-    var normalM = normalMatrix(mv, true); 
-
-    gl.uniformMatrix3fv(uNormalMatrixLoc, false, flatten(normalM));
-}
-
-function drawGeometry(geom) {
-    gl.bindBuffer(gl.ARRAY_BUFFER, geom.positionBuffer);
-    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vPositionLoc);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, geom.normalBuffer);
-    gl.vertexAttribPointer(aNormalLoc, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aNormalLoc);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, geom.texCoordBuffer);
-    gl.vertexAttribPointer(vTexCoordLoc, 2, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vTexCoordLoc);
-
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, geom.indexBuffer);
-    gl.drawElements(gl.TRIANGLES, geom.numIndices, gl.UNSIGNED_SHORT, 0);
 }

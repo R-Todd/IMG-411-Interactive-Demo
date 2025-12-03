@@ -1,97 +1,64 @@
 //
 // core-geometry.js
-// Generates a UV sphere for the floating energy core.
-// Produces position, normal, and UV buffers, plus index buffer.
-// Compatible with MV.js and the Blinn–Phong shaders.
+// Generates a UV sphere using non-indexed data suitable for drawing with gl.TRIANGLE_STRIP.
 //
-// The sphere is generated using the standard latitude/longitude
-// parameterization (stacks = latitude, slices = longitude).
-//
-
 function createCoreGeometry(gl, radius = 1.0, stacks = 30, slices = 30) {
 
-    // -------------------------------------------------------------
-    // 1) Generate arrays for raw vertex attributes
-    // -------------------------------------------------------------
     const positions = [];
     const normals   = [];
     const texCoords = [];
-    const indices   = [];
+    let vertexCount = 0;
 
-    // -------------------------------------------------------------
-    // 2) Generate vertices
-    // -------------------------------------------------------------
-    //
-    // Sphere parameterization:
-    //   theta = latitude angle (0 to PI)
-    //   phi   = longitude angle (0 to 2PI)
-    //
-    // Vertex position:
-    //   x = r * sin(theta) * cos(phi)
-    //   y = r * cos(theta)
-    //   z = r * sin(theta) * sin(phi)
-    //
-    // Normal = normalized position (unit sphere)
-    // UV mapping:
-    //   u = phi / (2PI)
-    //   v = theta / PI
-    //
-    for (let i = 0; i <= stacks; i++) {
-        const theta = i * Math.PI / stacks;
-        const sinTheta = Math.sin(theta);
-        const cosTheta = Math.cos(theta);
+    for (let i = 0; i < stacks; i++) {
+        const theta1 = i * Math.PI / stacks;
+        const theta2 = (i + 1) * Math.PI / stacks;
+        
+        // Add degenerate triangle to connect the previous stack's strip (if not the first stack)
+        if (i > 0) {
+            // Duplicate the last vertex added (V_last)
+            positions.push(positions[positions.length - 3], positions[positions.length - 2], positions[positions.length - 1]);
+            normals.push(normals[normals.length - 3], normals[normals.length - 2], normals[normals.length - 1]);
+            texCoords.push(texCoords[texCoords.length - 2], texCoords[texCoords.length - 1]);
+            vertexCount++; 
+        }
 
         for (let j = 0; j <= slices; j++) {
             const phi = j * 2.0 * Math.PI / slices;
-            const sinPhi = Math.sin(phi);
-            const cosPhi = Math.cos(phi);
+            
+            // --- V1: Top edge of this strip/quad (lat i) ---
+            const sinT1 = Math.sin(theta1);
+            const cosT1 = Math.cos(theta1);
+            let x1 = radius * sinT1 * Math.cos(phi);
+            let y1 = radius * cosT1;
+            let z1 = radius * sinT1 * Math.sin(phi);
+            
+            positions.push(x1, y1, z1);
+            normals.push(x1/radius, y1/radius, z1/radius);
+            texCoords.push(j / slices, i / stacks);
+            vertexCount++;
 
-            // Position on sphere
-            const x = radius * sinTheta * cosPhi;
-            const y = radius * cosTheta;
-            const z = radius * sinTheta * sinPhi;
 
-            // Normal (unit sphere)
-            const nx = sinTheta * cosPhi;
-            const ny = cosTheta;
-            const nz = sinTheta * sinPhi;
+            // --- V2: Bottom edge of this strip/quad (lat i+1) ---
+            const sinT2 = Math.sin(theta2);
+            const cosT2 = Math.cos(theta2);
+            let x2 = radius * sinT2 * Math.cos(phi);
+            let y2 = radius * cosT2;
+            let z2 = radius * sinT2 * Math.sin(phi);
 
-            // UV coordinates
-            const u = j / slices;
-            const v = i / stacks;
-
-            positions.push(x, y, z);
-            normals.push(nx, ny, nz);
-            texCoords.push(u, v);
+            positions.push(x2, y2, z2);
+            normals.push(x2/radius, y2/radius, z2/radius);
+            texCoords.push(j / slices, (i + 1) / stacks);
+            vertexCount++;
         }
     }
-
-    // -------------------------------------------------------------
-    // 3) Generate indices (two triangles per quad)
-    // -------------------------------------------------------------
-    for (let i = 0; i < stacks; i++) {
-        for (let j = 0; j < slices; j++) {
-            const first  = i * (slices + 1) + j;
-            const second = first + slices + 1;
-
-            // Triangle 1
-            indices.push(first, second, first + 1);
-
-            // Triangle 2
-            indices.push(second, second + 1, first + 1);
-        }
-    }
-
-    // -------------------------------------------------------------
-    // 4) Create WebGL buffers
-    // -------------------------------------------------------------
+    
     function createBuffer(target, data, usage = gl.STATIC_DRAW) {
         const buffer = gl.createBuffer();
         gl.bindBuffer(target, buffer);
         gl.bufferData(target, data, usage);
         return buffer;
     }
-
+    
     const positionBuffer = createBuffer(
         gl.ARRAY_BUFFER,
         new Float32Array(positions)
@@ -107,24 +74,10 @@ function createCoreGeometry(gl, radius = 1.0, stacks = 30, slices = 30) {
         new Float32Array(texCoords)
     );
 
-    const indexBuffer = createBuffer(
-        gl.ELEMENT_ARRAY_BUFFER,
-        new Uint16Array(indices)
-    );
-
-    // -------------------------------------------------------------
-    // 5) Return structured geometry object for main.js
-    // -------------------------------------------------------------
     return {
         positionBuffer: positionBuffer,
         normalBuffer: normalBuffer,
         texCoordBuffer: texCoordBuffer,
-        indexBuffer: indexBuffer,
-        numIndices: indices.length,
-
-        // Optional metadata
-        radius: radius,
-        stacks: stacks,
-        slices: slices
+        numVertices: vertexCount
     };
 }
