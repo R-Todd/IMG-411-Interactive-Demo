@@ -1,5 +1,5 @@
 //
-// main.js – REFACTORED VERSION with PROJECTION TOGGLE
+// main.js – REFACTORED VERSION with PROJECTION TOGGLE AND ASYNC FIX
 //
 
 var gl;
@@ -43,12 +43,12 @@ var up  = vec3(0.0, 1.0, 0.0);
 var moveSpeed = 0.3; 
 var turnSpeed = 2.0; 
 
-// NEW PROJECTION STATE
-var isOrthographic = false; // Initial view is Perspective
+// Projection State
+var isOrthographic = false; 
 var near = 0.1;
 var far = 100.0;
 var fovy = 45.0; 
-var ORTHO_SIZE = 6.0; // Defines the size of the orthogonal viewing window
+var ORTHO_SIZE = 6.0; 
 
 // =======================================================
 // Animation state
@@ -85,11 +85,23 @@ var MIN_RESOLUTION = 4;
 var MAX_RESOLUTION = 64;
 
 // =======================================================
-// Textures (unchanged)
+// Textures (UPDATED FOR ASYNC COUNTING)
 // =======================================================
+var textures = {
+    glass: null,
+    metal: null
+};
+
+// Counters for synchronization
+var textureCount = 0;
+var texturesLoaded = 0;
 
 function loadTexture(path) {
     var tex = gl.createTexture();
+    
+    // 1. Register this texture to be counted
+    textureCount++; 
+    
     tex.image = new Image();
     tex.image.onload = function() {
 
@@ -102,6 +114,14 @@ function loadTexture(path) {
 
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        // 2. Mark as loaded
+        texturesLoaded++; 
+        
+        // 3. Check if all textures are done. If so, start rendering.
+        if (texturesLoaded === textureCount) {
+            render(); 
+        }
     };
     tex.image.src = path;
     return tex;
@@ -265,7 +285,7 @@ function toggleLightOrbit() {
 
 
 // =======================================================
-// Initialization (unchanged)
+// Initialization (FIXED)
 // =======================================================
 window.onload = function init() {
     var canvas = document.getElementById("gl-canvas");
@@ -307,9 +327,13 @@ window.onload = function init() {
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(uTextureLoc, 0);
     
+    // --- START TEXTURE LOADING ---
     textures.glass = loadTexture("textures/glass.jpg");
     textures.metal = loadTexture("textures/metal.jpg");
-
+    // render() call is now removed from here and placed in the loadTexture onload callback
+    // to ensure synchronization.
+    
+    // --- GEOMETRY SETUP (runs immediately) ---
     coreGeom     = createCoreGeometry(gl, 1.0, coreResolution, coreResolution); 
     shardGeom    = createShardGeometry(gl, 1.2, 0.35);
 
@@ -323,8 +347,8 @@ window.onload = function init() {
         shardRadiusFactor = slider.valueAsNumber;
     }
 
-    render();
-};
+}; // end init()
+
 
 // =======================================================
 // Helpers (unchanged)
@@ -362,7 +386,7 @@ function drawGeometry(geom) {
 
 
 // =======================================================
-// Render Loop (UPDATED for Projection Matrix)
+// Render Loop (Core Logic)
 // =======================================================
 function render() {
     requestAnimFrame(render);
@@ -372,25 +396,22 @@ function render() {
     gl.clearColor(0.05, 0.05, 0.08, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
 
-    // --- Dynamic Projection Matrix Calculation (NEW LOGIC) ---
+    // --- Dynamic Projection Matrix Calculation ---
     var canvas = document.getElementById("gl-canvas");
     var aspect = canvas.width / canvas.height;
     var projMat;
 
     if (isOrthographic) {
-        // Orthographic (Parallel) Projection: Preserves shape/scale, good for technical views
         var w = ORTHO_SIZE * aspect;
         var h = ORTHO_SIZE; 
         projMat = ortho(-w, w, -h, h, near, far);
     } else {
-        // Perspective Projection: Realistic view with foreshortening
         projMat = perspective(fovy, aspect, near, far);
     }
 
-    // Send the active projection matrix to the shader
     gl.uniformMatrix4fv(uProjectionLoc, false, flatten(projMat));
 
-    // ... (rest of lighting and camera setup remains here) ...
+    // ... (rest of rendering loop logic) ...
 
     var currentLightPos;
     if (lightOrbitOn) {
