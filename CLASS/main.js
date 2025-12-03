@@ -156,9 +156,21 @@ window.onkeydown = function(event) {
     }
 
     if (rotateMatrix) {
-        var V_vec4 = vec4(V[0], V[1], V[2], 0.0); 
-        var V_rotated = mult(rotateMatrix, V_vec4); 
+        var V_vec4 = vec4(V[0], V[1], V[2], 0.0);
+        var V_rotated_array = [];
         
+        // FIXED: Manual Matrix * Vector Multiplication to avoid the mult bug
+        for (var i = 0; i < 4; i++) {
+            var row = rotateMatrix[i];
+            var V_in = V_vec4;
+            var sum = row[0] * V_in[0] + 
+                      row[1] * V_in[1] + 
+                      row[2] * V_in[2] + 
+                      row[3] * V_in[3];
+            V_rotated_array.push(sum);
+        }
+        var V_rotated = V_rotated_array; // Result is a correct rotated vector
+
         var new_V = normalize(V_rotated.slice(0, 3)); 
         // Re-establish AT point at the original distance from eye
         var distance = length(subtract(at, eye)); 
@@ -182,8 +194,20 @@ function orbitLeft()  {
     // Rotate V CCW around Y-axis, faster than keyboard arrows
     var V = normalize( subtract(at, eye) ); 
     var rotateMatrix = rotate(turnSpeed * 3.0, up); 
+    
     var V_vec4 = vec4(V[0], V[1], V[2], 0.0);
-    var V_rotated = mult(rotateMatrix, V_vec4); 
+    var V_rotated_array = [];
+    for (var i = 0; i < 4; i++) {
+        var row = rotateMatrix[i];
+        var V_in = V_vec4;
+        var sum = row[0] * V_in[0] + 
+                  row[1] * V_in[1] + 
+                  row[2] * V_in[2] + 
+                  row[3] * V_in[3];
+        V_rotated_array.push(sum);
+    }
+    var V_rotated = V_rotated_array; 
+    
     var new_V = normalize(V_rotated.slice(0, 3)); 
     var distance = length(subtract(at, eye)); 
     at = add(eye, scale(distance, new_V));
@@ -192,8 +216,20 @@ function orbitRight() {
     // Rotate V CW around Y-axis, faster than keyboard arrows
     var V = normalize( subtract(at, eye) ); 
     var rotateMatrix = rotate(-turnSpeed * 3.0, up);
+    
     var V_vec4 = vec4(V[0], V[1], V[2], 0.0);
-    var V_rotated = mult(rotateMatrix, V_vec4); 
+    var V_rotated_array = [];
+    for (var i = 0; i < 4; i++) {
+        var row = rotateMatrix[i];
+        var V_in = V_vec4;
+        var sum = row[0] * V_in[0] + 
+                  row[1] * V_in[1] + 
+                  row[2] * V_in[2] + 
+                  row[3] * V_in[3];
+        V_rotated_array.push(sum);
+    }
+    var V_rotated = V_rotated_array;
+    
     var new_V = normalize(V_rotated.slice(0, 3));
     var distance = length(subtract(at, eye));
     at = add(eye, scale(distance, new_V));
@@ -347,13 +383,13 @@ function render() {
     drawGeometry(coreGeom);
 
     // =======================================================
-    // 2. SHARDS (opaque)
+    // 2. SHARDS (opaque) - PURPLE COLOR APPLIED
     // =======================================================
     
-    // Shard Material Properties
-    gl.uniform4fv(uAmbientLoc,  flatten(vec4(0.1, 0.1, 0.1, 1.0)));
-    gl.uniform4fv(uDiffuseLoc,  flatten(vec4(0.4, 0.4, 0.6, 1.0))); 
-    gl.uniform4fv(uSpecularLoc, flatten(vec4(0.8, 0.8, 0.8, 1.0)));
+    // Shard Material Properties: PURPLE
+    gl.uniform4fv(uAmbientLoc,  flatten(vec4(0.15, 0.05, 0.20, 1.0)));
+    gl.uniform4fv(uDiffuseLoc,  flatten(vec4(0.6, 0.2, 0.8, 1.0))); 
+    gl.uniform4fv(uSpecularLoc, flatten(vec4(1.0, 1.0, 1.0, 1.0)));
     gl.uniform1f(uShininessLoc, 40.0); 
 
     for (var i = 0; i < 4; i++) {
