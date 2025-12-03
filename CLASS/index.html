@@ -2,66 +2,101 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Floating Energy Core With Spinning Shards</title>
-    
-    <script type="text/javascript" src="../COMMON/webgl-utils.js"></script> 
-    
-    <script type="text/javascript" src="../COMMON/MV.js"></script> 
-    
-    <script type="text/javascript" src="../COMMON/initShaders.js"></script> 
-    
-    
-    <script type="text/javascript" src="core-geometry.js"></script>
-    
-    <script type="text/javascript" src="shard-geometry.js"></script>
-    
-    <script type="text/javascript" src="shaders.js"></script> 
-    
-    <script type="text/javascript" src="main.js"></script>
-    
-    
+    <title>Floating Energy Core – Containment Cylinder</title>
+
+    <!-- COMMON utilities -->
+    <script src="../COMMON/webgl-utils.js"></script>
+    <script src="../COMMON/initShaders.js"></script>
+    <script src="../COMMON/MV.js"></script>
+
+    <!-- Project geometry -->
+    <script src="core-geometry.js"></script>
+    <script src="shard-geometry.js"></script>
+    <script src="cylinder-geometry.js"></script>
+    <script src="main.js"></script>
+
+    <!-- =====================================================
+         Vertex Shader
+         ===================================================== -->
     <script id="vertex-shader" type="x-shader/x-vertex">
-        // VERTEX SHADER PLACEHOLDER (Replaced in Phase 1)
-        void main() { 
-            // Minimal requirement for gl_Position output
-            gl_Position = vec4(0.0, 0.0, 0.0, 1.0); 
-        }
-    </script>
-    
-    <script id="fragment-shader" type="x-shader/x-fragment">
-        // FRAGMENT SHADER PLACEHOLDER (Replaced in Phase 1)
-        precision mediump float; // Required precision specifier
-        void main() { 
-            // Output a basic solid color
-            gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0); 
+        attribute vec4 vPosition;
+        attribute vec3 aNormal;
+        attribute vec2 vTexCoord;
+
+        uniform mat4 uModel;
+        uniform mat4 uView;
+        uniform mat4 uProjection;
+        uniform mat3 uNormalMatrix;
+
+        varying vec3 fNormal;
+        varying vec3 fPosition;
+        varying vec2 fTexCoord;
+
+        void main() {
+            fPosition = (uView * uModel * vPosition).xyz;
+            fNormal = normalize(uNormalMatrix * aNormal);
+            fTexCoord = vTexCoord;
+            gl_Position = uProjection * uView * uModel * vPosition;
         }
     </script>
 
-    <style>
-        body { margin: 0; background-color: #111; color: #eee; font-family: monospace; text-align: center; }
-        canvas { border: 1px solid #333; margin: 20px auto; display: block; }
-        #ui-controls { 
-            padding: 15px; 
-            background-color: #222; 
-            width: 800px; 
-            margin: 0 auto;
-            border-radius: 5px;
+    <!-- =====================================================
+         UPDATED: Fragment Shader (supports transparency)
+         ===================================================== -->
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        precision mediump float;
+
+        varying vec3 fNormal;
+        varying vec3 fPosition;
+        varying vec2 fTexCoord;
+
+        uniform vec3 uLightPos;
+        uniform vec3 uCameraPos;
+
+        uniform vec4 uAmbient;
+        uniform vec4 uDiffuse;
+        uniform vec4 uSpecular;
+        uniform float uShininess;
+
+        uniform bool uUseTexture;
+        uniform sampler2D uTexture;
+
+        uniform float uAlpha;   // NEW
+
+        void main() {
+            vec3 N = normalize(fNormal);
+            vec3 L = normalize(uLightPos - fPosition);
+            vec3 V = normalize(uCameraPos - fPosition);
+            vec3 H = normalize(L + V);
+
+            float diff = max(dot(N, L), 0.0);
+            float spec = pow(max(dot(N, H), 0.0), uShininess);
+
+            vec4 texColor = vec4(1.0);
+            if (uUseTexture) {
+                texColor = texture2D(uTexture, fTexCoord);
+            }
+
+            vec4 color =
+                uAmbient * texColor +
+                uDiffuse * diff * texColor +
+                uSpecular * spec;
+
+            gl_FragColor = vec4(color.rgb, uAlpha);
         }
-    </style>
+    </script>
 
 </head>
+
 <body>
-    
-    <canvas id="gl-canvas" width="800" height="800">
-        Oops... your browser doesn't support the HTML5 canvas element
+    <canvas id="gl-canvas" width="800" height="600">
+        Your browser does not support HTML5 canvas.
     </canvas>
-    
-    <div id="ui-controls">
-        <h3>Floating Energy Core Interactivity</h3>
-        <p><strong>Camera Controls:</strong></p>
-        <p>Rotate: <kbd>←</kbd> / <kbd>→</kbd> / <kbd>↑</kbd> / <kbd>↓</kbd> | Zoom: <kbd>W</kbd> (In) / <kbd>S</kbd> (Out)</p>
-        <p><strong>Effects Toggles:</strong></p>
-        <p>Toggle Shard Speed: <kbd>1</kbd> | Toggle Core Pulse Intensity: <kbd>2</kbd> | Toggle Color Mode: <kbd>3</kbd></p>
+
+    <div style="margin-top:10px;">
+        <button onclick="orbitLeft()">Orbit Left</button>
+        <button onclick="orbitRight()">Orbit Right</button>
+        <button onclick="resetCamera()">Reset Camera</button>
     </div>
 </body>
 </html>
