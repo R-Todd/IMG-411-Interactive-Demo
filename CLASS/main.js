@@ -70,7 +70,7 @@ var coreBobSpeed    = 0.05;
 // Light Animation State
 // =======================================================
 var lightOrbitAngle = 0.0;
-var lightOrbitSpeed = 20.0; 
+var lightOrbitSpeed = 50.0; // INCREASED LIGHT SPEED
 var lightOrbitOn = false;
 var lightDistance = 5.0; 
 var lightOrbitHeight = 3.0; 
@@ -79,27 +79,26 @@ var lightOrbitHeight = 3.0;
 // Interactivity State
 // =======================================================
 var shardRadiusFactor = 1.0; 
+var shardSpeedFactor = 1.0; // NEW: Shard speed control factor
 
 var coreResolution = 32; 
 var MIN_RESOLUTION = 4;
 var MAX_RESOLUTION = 64;
 
 // =======================================================
-// Textures (UPDATED FOR ASYNC COUNTING)
+// Textures (ASYNCHRONOUS LOAD FIX)
 // =======================================================
 var textures = {
     glass: null,
     metal: null
 };
 
-// Counters for synchronization
 var textureCount = 0;
 var texturesLoaded = 0;
 
 function loadTexture(path) {
     var tex = gl.createTexture();
     
-    // 1. Register this texture to be counted
     textureCount++; 
     
     tex.image = new Image();
@@ -115,10 +114,8 @@ function loadTexture(path) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-        // 2. Mark as loaded
         texturesLoaded++; 
         
-        // 3. Check if all textures are done. If so, start rendering.
         if (texturesLoaded === textureCount) {
             render(); 
         }
@@ -155,7 +152,7 @@ function decreaseResolution() {
 }
 
 // =======================================================
-// Projection Toggle Function (NEW)
+// Projection Toggle Function
 // =======================================================
 function toggleProjection() {
     isOrthographic = !isOrthographic;
@@ -327,11 +324,10 @@ window.onload = function init() {
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(uTextureLoc, 0);
     
-    // --- START TEXTURE LOADING ---
+    // --- START ASYNCHRONOUS TEXTURE LOADING ---
     textures.glass = loadTexture("textures/glass.jpg");
     textures.metal = loadTexture("textures/metal.jpg");
-    // render() call is now removed from here and placed in the loadTexture onload callback
-    // to ensure synchronization.
+    // Execution will pause here until textures finish loading via the callback counter.
     
     // --- GEOMETRY SETUP (runs immediately) ---
     coreGeom     = createCoreGeometry(gl, 1.0, coreResolution, coreResolution); 
@@ -345,6 +341,11 @@ window.onload = function init() {
     var slider = document.getElementById("shardRadiusSlider");
     if (slider) {
         shardRadiusFactor = slider.valueAsNumber;
+    }
+    
+    var sliderSpeed = document.getElementById("shardSpeedSlider");
+    if (sliderSpeed) {
+        shardSpeedFactor = sliderSpeed.valueAsNumber;
     }
 
 }; // end init()
@@ -389,14 +390,23 @@ function drawGeometry(geom) {
 // Render Loop (Core Logic)
 // =======================================================
 function render() {
-    requestAnimFrame(render);
+    requestAnimFrame(render); // The continuous animation loop call
 
-    // ... (rest of animation logic) ...
+    // --- 1. Update Animation Variables ---
+    coreAngle      += coreRotateSpeed * 0.01;
+    corePulsePhase += corePulseSpeed;
+    coreBobPhase   += coreBobSpeed;
+
+    for (var i = 0; i < 4; i++) {
+        // Apply speed factor controlled by new slider
+        shardAngles[i] += shardOrbitSpeeds[i] * 0.1 * shardSpeedFactor; 
+        if (shardAngles[i] > 360) shardAngles[i] -= 360;
+    }
 
     gl.clearColor(0.05, 0.05, 0.08, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
 
-    // --- Dynamic Projection Matrix Calculation ---
+    // --- 2. Dynamic Projection Matrix Calculation ---
     var canvas = document.getElementById("gl-canvas");
     var aspect = canvas.width / canvas.height;
     var projMat;
@@ -411,8 +421,7 @@ function render() {
 
     gl.uniformMatrix4fv(uProjectionLoc, false, flatten(projMat));
 
-    // ... (rest of rendering loop logic) ...
-
+    // --- 3. Light and View Setup ---
     var currentLightPos;
     if (lightOrbitOn) {
         var radLight = radians(lightOrbitAngle);
@@ -431,9 +440,9 @@ function render() {
 
     shardOrbitRadius = 2.3 * shardRadiusFactor; 
 
-    // =======================================================
-    // 1. CORE (opaque)
-    // =======================================================
+    // --- 4. Drawing Commands ---
+    
+    // 1. CORE (optimized TRIANGLE_STRIP)
     setMaterial(gl, uMaterialLocs, Materials.CORE);
     
     var coreModel = mat4();
@@ -447,9 +456,7 @@ function render() {
     sendMatrices(coreModel);
     drawGeometry(coreGeom); 
 
-    // =======================================================
-    // 2. SHARDS (opaque)
-    // =======================================================
+    // 2. SHARDS (PURPLE)
     setMaterial(gl, uMaterialLocs, Materials.SHARDS_PURPLE);
 
     for (var i = 0; i < 4; i++) {
@@ -467,38 +474,30 @@ function render() {
         drawGeometry(shardGeom);
     }
 
-    // =======================================================
     // 3. METAL COLLARS (textured)
-    // =======================================================
     setMaterial(gl, uMaterialLocs, Materials.METAL_COLLAR(textures.metal));
 
-    // Top Collar
     var ring1 = mat4();
     ring1 = mult(ring1, translate(0.0, 3.0, 0.0));
     ring1 = mult(ring1, scalem(4.02, 0.20, 4.02));
     sendMatrices(ring1);
     drawGeometry(cylinderGeom);
 
-    // Bottom Collar
     var ring2 = mat4();
     ring2 = mult(ring2, translate(0.0, -3.0, 0.0));
     ring2 = mult(ring2, scalem(4.02, 0.20, 4.02));
     sendMatrices(ring2);
     drawGeometry(cylinderGeom);
 
-    // =======================================================
     // 4. METAL CAPS (solid color)
-    // =======================================================
     setMaterial(gl, uMaterialLocs, Materials.METAL_CAP);
 
-    // Bottom Cap
     var bottomModel = mat4();
     bottomModel = mult(bottomModel, translate(0.0, -2.0, 0.0)); 
     bottomModel = mult(bottomModel, scalem(4.0, 1.0, 4.0));
     sendMatrices(bottomModel);
     drawGeometry(metalBottomGeom);
 
-    // Top Cap
     var topModel = mat4();
     topModel = mult(topModel, translate(0.0, 2.0, 0.0));    
     topModel = mult(topModel, scalem(4.0, 1.0, 4.0));
@@ -506,9 +505,7 @@ function render() {
     drawGeometry(metalTopGeom);
 
 
-    // =======================================================
     // 6. PEDESTAL 
-    // =======================================================
     
     const pedestalHelpers = { 
         cylinderGeom: cylinderGeom, 
@@ -523,9 +520,7 @@ function render() {
         pedestalHelpers
     );
     
-    // =======================================================
     // 5. GLASS CYLINDER (transparent, last)
-    // =======================================================
     setMaterial(gl, uMaterialLocs, Materials.GLASS_CYLINDER(textures.glass));
     
     var cylModel = mat4();
