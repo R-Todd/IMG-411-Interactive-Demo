@@ -35,7 +35,7 @@ const Materials = {
         specular: [1.0, 1.0, 1.0, 1.0],
         shininess: 20.0,
         useTexture: false,
-        alpha: 1.0
+        alpha: 1.0 // transparency = full
     },
     SHARDS_PURPLE: {
         ambient: [0.15, 0.05, 0.20, 1.0],
@@ -43,7 +43,7 @@ const Materials = {
         specular: [1.0, 1.0, 1.0, 1.0],
         shininess: 40.0,
         useTexture: false,
-        alpha: 1.0
+        alpha: .65// transparency = full
     },
     // Metal material with texture support
     // uses texture for different textures
@@ -54,7 +54,7 @@ const Materials = {
         shininess: 16.0,
         useTexture: true,
         texture: texture,
-        alpha: 1.0
+        alpha: 1.0 // transparency = full
     }),
     // Solid metal material (cap/pedestal)
     METAL_CAP: {
@@ -63,7 +63,7 @@ const Materials = {
         specular: [0.60, 0.68, 0.75, 1.0],
         shininess: 32.0,
         useTexture: false,
-        alpha: 1.0
+        alpha: 1.0 // transparency = full
     },
     // Glass material with texture and transparency
     GLASS_CYLINDER: (texture) => ({
@@ -74,6 +74,6 @@ const Materials = {
         shininess: 32.0,
         useTexture: true,
         texture: texture,
-        alpha: 0.35 // Set high transparency
+        alpha: 0.35 // !!!! must be transparent
     })
 };

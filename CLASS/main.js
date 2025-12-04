@@ -142,7 +142,8 @@ function loadTexture(path) {
 
         texturesLoaded++; // increment loaded count
         
-        // If all textures are loaded, then we start the main render loop
+        //  ----------
+        // forces render to wait until textures are loaded
         if (texturesLoaded === textureCount) {
             render(); 
         }
@@ -346,6 +347,9 @@ window.onload = function init() {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.enable(gl.DEPTH_TEST);
 
+    // ==========
+    // !!!! GLASS !!!!!
+    // ==========
     // added bleed to make glass transparent
     gl.enable(gl.BLEND); // enables blending
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); // set blending function

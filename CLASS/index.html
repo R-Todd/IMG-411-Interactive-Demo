@@ -67,6 +67,10 @@
             vec3 V = normalize(uCameraPos - fPosition);
             vec3 H = normalize(L + V);
 
+            // ==============================
+            // Blinn-Phong 
+            // ==============================
+            
             vec4 ambientTerm = uAmbient;
             
             // Diffuse term
@@ -79,6 +83,11 @@
 
             // Combined color
             vec4 finalColor = ambientTerm + diffuseTerm + specularTerm;
+
+
+            // if a texture is used:
+            //      - sample the texture color
+            //     - blend it with the lighting result
 
             // Apply texture if enabled
             if (uUseTexture) {
@@ -126,8 +135,13 @@
 
     <div style="margin-top:10px;">
         Core Resolution (Triangles/Complexity):
-        <button onclick="decreaseResolution()">Decrease Resolution (-)</button>
-        <button onclick="increaseResolution()">Increase Resolution (+)</button>
+        <button onclick="decreaseResolution()">Decrease Faces (-)</button>
+        <button onclick="increaseResolution()">Increase Faces (+)</button>
+    </div>
+
+    
+    <div style="margin-top:10px;">
+        Camera Movement: W/A/S/D keys and Arrow Left/Right to Orbit
     </div>
 </body>
 </html>
