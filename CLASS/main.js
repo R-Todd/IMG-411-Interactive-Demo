@@ -49,7 +49,7 @@ var eye = vec3(0.0, 0.0, -20.0); // Camera starts at (0, 0, -20)
 var at  = vec3(0.0, 0.0, 0.0);   // Looking at origin
 var up  = vec3(0.0, 1.0, 0.0); // Up vector
 
-var moveSpeed = 0.3; 
+var moveSpeed = 0.5; 
 var turnSpeed = 2.0; 
 
 // ----- Projection State -----
@@ -83,7 +83,7 @@ var coreBobSpeed    = 0.05;
 
 
 var lightOrbitAngle = 0.0;
-var lightOrbitSpeed = 80.0; // speed of light source orbit
+var lightOrbitSpeed = 100.0; // speed of light source orbit
 var lightOrbitOn = false;   // toggle state
 var lightDistance = 5.0;    // distance from origin
 var lightOrbitHeight = 3.0; // height above XZ plane

@@ -25,7 +25,7 @@ function createCoreGeometry(gl, radius = 1.0, stacks = 30, slices = 30) {
         
         // use triangle strip for each stack
         if (i > 0) {
-            // add degenerate vertex to connect strips
+            // incriment  vertex to connect strips
             positions.push(positions[positions.length - 3], positions[positions.length - 2], positions[positions.length - 1]); // repeat last vertex
             normals.push(normals[normals.length - 3], normals[normals.length - 2], normals[normals.length - 1]); // repeat last normal
             texCoords.push(texCoords[texCoords.length - 2], texCoords[texCoords.length - 1]); // repeat last tex coord
